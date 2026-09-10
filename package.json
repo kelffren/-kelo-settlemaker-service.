@@ -8,10 +8,8 @@
     "node": ">=20"
   },
   "scripts": {
+    "prepare:settlemaker": "sh scripts/prepare-settlemaker.sh",
     "start": "node server.mjs",
     "test": "node --test test/service.test.mjs"
-  },
-  "dependencies": {
-    "settlemaker": "2.3.0"
   }
 }
