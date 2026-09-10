@@ -1,0 +1,48 @@
+name: Settlemaker Service CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm install --no-audit --no-fund
+      - name: Build pinned Settlemaker
+        run: npm run prepare:settlemaker
+      - name: Run tests
+        id: tests
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee /tmp/test-output.txt
+      - name: Upload test diagnostics
+        if: steps.tests.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-diagnostics
+          path: /tmp/test-output.txt
+      - name: Stop on test failure
+        if: steps.tests.outcome == 'failure'
+        run: exit 1
+      - name: HTTP smoke
+        run: |
+          PORT=3100 node server.mjs > /tmp/kelo-settlemaker.log 2>&1 &
+          PID=$!
+          for i in {1..20}; do
+            if curl -fsS http://127.0.0.1:3100/health > /tmp/health.json; then break; fi
+            sleep 0.5
+          done
+          curl -fsS http://127.0.0.1:3100/health
+          curl -fsS -X POST http://127.0.0.1:3100/generate \
+            -H 'content-type: application/json' \
+            -d '{"seed":42,"population":12000,"walls":true,"plaza":true,"citadel":true,"temple":true,"capital":true,"port":false,"roadBearings":[0,90,180,270]}' \
+            | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{const j=JSON.parse(s);if(j.geojson?.type!=='FeatureCollection'||j.geojson.features.length<10)process.exit(1);console.log('features',j.geojson.features.length)})"
+          kill $PID

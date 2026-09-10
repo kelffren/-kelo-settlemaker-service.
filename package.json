@@ -1,0 +1,15 @@
+{
+  "name": "kelo-settlemaker-service",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "GPL-3.0-only",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "prepare:settlemaker": "sh scripts/prepare-settlemaker.sh",
+    "start": "node server.mjs",
+    "test": "node --test test/service.test.mjs"
+  }
+}
