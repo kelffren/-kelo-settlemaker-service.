@@ -50,6 +50,17 @@ function normalizeRequest(input = {}) {
   return { seed, burg };
 }
 
+function deterministicGeoJson(geojson) {
+  if (!geojson || typeof geojson !== 'object') return geojson;
+  const metadata = geojson.metadata;
+  if (!metadata || typeof metadata !== 'object' || !Object.prototype.hasOwnProperty.call(metadata, 'generated_at')) {
+    return geojson;
+  }
+
+  const { generated_at: _generatedAt, ...stableMetadata } = metadata;
+  return { ...geojson, metadata: stableMetadata };
+}
+
 async function readJson(req) {
   const chunks = [];
   let size = 0;
@@ -78,7 +89,7 @@ export function generateForKelo(input = {}) {
     request: burg,
     degradedFlags: result.degradedFlags || [],
     originShift: result.originShift || null,
-    geojson: result.geojson
+    geojson: deterministicGeoJson(result.geojson)
   };
 }
 
