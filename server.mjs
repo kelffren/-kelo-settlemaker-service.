@@ -5,17 +5,50 @@ const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0';
 const MAX_BODY_BYTES = 64 * 1024;
 
-function json(res, status, payload) {
+function allowedOrigins() {
+  return String(process.env.KELO_ALLOWED_ORIGIN || '')
+    .split(',')
+    .map(value => value.trim())
+    .filter(Boolean);
+}
+
+function corsOrigin(req) {
+  const configured = allowedOrigins();
+  if (!configured.length) return '*';
+  const origin = String(req.headers.origin || '');
+  if (configured.includes(origin)) return origin;
+  if (/^http:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?$/i.test(origin)) return origin;
+  return configured[0];
+}
+
+function corsHeaders(req) {
+  return {
+    'access-control-allow-origin': corsOrigin(req),
+    'access-control-allow-methods': 'GET,POST,OPTIONS',
+    'access-control-allow-headers': 'content-type',
+    'access-control-max-age': '600',
+    'vary': 'Origin'
+  };
+}
+
+function json(req, res, status, payload) {
   const body = JSON.stringify(payload);
   res.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',
     'content-length': Buffer.byteLength(body),
-    'access-control-allow-origin': process.env.KELO_ALLOWED_ORIGIN || '*',
-    'access-control-allow-methods': 'GET,POST,OPTIONS',
-    'access-control-allow-headers': 'content-type',
+    ...corsHeaders(req),
     'cache-control': 'no-store'
   });
   res.end(body);
+}
+
+function preflight(req, res) {
+  res.writeHead(204, {
+    ...corsHeaders(req),
+    'content-length': '0',
+    'cache-control': 'no-store'
+  });
+  res.end();
 }
 
 function normalizeRequest(input = {}) {
@@ -95,15 +128,15 @@ export function generateForKelo(input = {}) {
 
 export function createServer() {
   return http.createServer(async (req, res) => {
-    if (req.method === 'OPTIONS') return json(res, 204, {});
+    if (req.method === 'OPTIONS') return preflight(req, res);
 
     const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`);
 
     if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/health')) {
-      return json(res, 200, {
+      return json(req, res, 200, {
         ok: true,
         service: 'kelo-settlemaker-service',
-        version: '0.1.0',
+        version: '0.1.1',
         generator: 'settlemaker@2.3.0'
       });
     }
@@ -112,17 +145,17 @@ export function createServer() {
       try {
         const input = await readJson(req);
         const generated = generateForKelo(input);
-        return json(res, 200, generated);
+        return json(req, res, 200, generated);
       } catch (error) {
         console.error('[kelo-settlemaker-service]', error);
-        return json(res, error?.statusCode || 500, {
+        return json(req, res, error?.statusCode || 500, {
           ok: false,
           error: error?.message || 'GENERATION_FAILED'
         });
       }
     }
 
-    return json(res, 404, { ok: false, error: 'NOT_FOUND' });
+    return json(req, res, 404, { ok: false, error: 'NOT_FOUND' });
   });
 }
 
