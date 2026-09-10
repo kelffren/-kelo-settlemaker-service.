@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { generateSettlement } from 'settlemaker';
+import { generateSettlement } from './vendor/settlemaker/dist/settlemaker.browser.mjs';
 
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0';
