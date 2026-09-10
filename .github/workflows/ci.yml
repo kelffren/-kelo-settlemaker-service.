@@ -8,13 +8,15 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
       - run: npm install --no-audit --no-fund
+      - name: Build pinned Settlemaker
+        run: npm run prepare:settlemaker
       - run: npm test
       - name: HTTP smoke
         run: |
