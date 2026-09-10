@@ -17,7 +17,21 @@ jobs:
       - run: npm install --no-audit --no-fund
       - name: Build pinned Settlemaker
         run: npm run prepare:settlemaker
-      - run: npm test
+      - name: Run tests
+        id: tests
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee /tmp/test-output.txt
+      - name: Upload test diagnostics
+        if: steps.tests.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-diagnostics
+          path: /tmp/test-output.txt
+      - name: Stop on test failure
+        if: steps.tests.outcome == 'failure'
+        run: exit 1
       - name: HTTP smoke
         run: |
           PORT=3100 node server.mjs > /tmp/kelo-settlemaker.log 2>&1 &
