@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { generateForKelo } from '../server.mjs';
+import { createServer, generateForKelo } from '../server.mjs';
 
 test('same seed produces the same GeoJSON', () => {
   const input = {
@@ -34,4 +34,35 @@ test('service normalizes unsafe or missing inputs', () => {
   assert.equal(result.request.port, false);
   assert.equal(result.request.walls, true);
   assert.equal(result.geojson.type, 'FeatureCollection');
+});
+
+test('OPTIONS preflight is bodyless and allows Kelo local browser origin', async t => {
+  const previous = process.env.KELO_ALLOWED_ORIGIN;
+  process.env.KELO_ALLOWED_ORIGIN = 'https://kelffren.github.io';
+  const server = createServer();
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  t.after(async () => {
+    await new Promise(resolve => server.close(resolve));
+    if (previous === undefined) delete process.env.KELO_ALLOWED_ORIGIN;
+    else process.env.KELO_ALLOWED_ORIGIN = previous;
+  });
+
+  const { port } = server.address();
+  const response = await fetch(`http://127.0.0.1:${port}/generate`, {
+    method: 'OPTIONS',
+    headers: {
+      origin: 'http://127.0.0.1:4173',
+      'access-control-request-method': 'POST',
+      'access-control-request-headers': 'content-type'
+    }
+  });
+  assert.equal(response.status, 204);
+  assert.equal(response.headers.get('access-control-allow-origin'), 'http://127.0.0.1:4173');
+  assert.match(response.headers.get('access-control-allow-methods') || '', /POST/);
+  assert.match(response.headers.get('access-control-allow-headers') || '', /content-type/i);
+  assert.equal(response.headers.get('content-length'), '0');
+  assert.equal(await response.text(), '');
 });
